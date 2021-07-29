@@ -1,7 +1,8 @@
 #pragma once
 #include <vector>
 #include <opencv2/core.hpp>
-#include "edge.hpp"
+#include <opencv2/imgproc.hpp>
+#include "Edge.hpp"
 
 struct EdgeCompFunctor{
     bool operator() (const Edge* const e1, const Edge* const e2) const {
@@ -12,8 +13,8 @@ struct EdgeCompFunctor{
 // 物体定义，物体内部有很多edge
 class Object {
 public:
-    Object();
-    ~Object();
+    Object(int _id = 0): id(_id) {}
+    ~Object() {}
 public:
     // 内部投影，自我更新
     // 内部投影之后，一个object内部最多还有两条可以投影的edge，只需要遍历即可
@@ -21,6 +22,8 @@ public:
 
     // 根据观测位置，进行背面剔除，建立对应的object
     void intialize(const std::vector<Eigen::Vector2d>& pts, const Eigen::Vector2d& obs);
+
+    void visualizeEdges(cv::Mat& src, cv::Point obs) const;
 
     // make polygons for render(ing)，输出供opencv使用的多边形
     void makePolygons4Render(Eigen::Vector2d obs, std::vector<std::vector<cv::Point>>& polygons) const;
@@ -46,6 +49,7 @@ private:
     );
 
 public:
+    int id;
     bool valid;
     bool projected;
     double min_dist;

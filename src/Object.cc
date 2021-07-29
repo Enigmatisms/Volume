@@ -1,5 +1,6 @@
 #include <Eigen/Cholesky>
 #include "Object.hpp"
+#include "LOG.hpp"
 
 const double PI = 3.141592653589793238;
  
@@ -7,14 +8,28 @@ const double PI = 3.141592653589793238;
 // 内部投影先做，做完之后可以确定每个object有谁投影
 void Object::internalProjection(const Eigen::Vector2d& obs) {
     // 每一次被选中投影之后，自身队列没有必要存在了
+    /// @todo: heap没能成功关联 
+    printf("Internal proj, edges size: %lu\n", edges.size());
     while (heap.empty() == false) {
         Edge* top = heap.top();
         heap.pop();
         if (top->valid == false) continue;
         top->projected = true;
+        printf("Project values: ");
         for (Edge& eg: edges) {
-            if (eg.valid == false || eg.projected == true) continue;
+            printf("%d, ", int(eg.projected));
+        }
+        printf("\n");
+        size_t i = 0;
+        for (Edge& eg: edges) {
+            if (eg.valid == false || eg.projected == true) {
+                i++;
+                continue;
+            }
+            LOG_INFO("Before proj (%lu), proj ids is: %d, %d", i, top->proj_ids.first, top->proj_ids.second);
             projectEdge2Edge(top, obs, eg);
+            LOG_SHELL("After proj (%lu), proj ids is: %d, %d", i, top->proj_ids.first, top->proj_ids.second);
+            i++;
         }
     }
 }
@@ -24,6 +39,8 @@ void Object::externalOcclusion(Object& obj, Eigen::Vector2d obs) {
         Edge& eg = edges[i];
         if (eg.valid == false) continue;
         if (eg.proj_ids.first < 0 && eg.proj_ids.second < 0) continue;
+        LOG_CHECK("Other object is being occ by edge %lu, ", i);
+        // obj 是被本object选中的eg遮挡
         obj.externalProjector(&eg, obs);
     }
 }
@@ -36,9 +53,12 @@ void Object::externalProjector(Edge* const src, const Eigen::Vector2d& obs) {
         Edge* top = heap.top();
         heap.pop();
         if (top->valid == false) continue;
+        size_t i = 0;
         for (Edge& eg: edges) {
             if (eg.valid == false) continue;
+            LOG_INFO("Edge in the object %lu is being shadowed.", i);
             projectEdge2Edge<false>(src, obs, *top);
+            i++;
         }
     }
     // 需要重新建堆
@@ -55,43 +75,44 @@ void Object::externalProjector(Edge* const src, const Eigen::Vector2d& obs) {
 
 // 根据观测位置，进行背面剔除，建立对应的object
 void Object::intialize(const std::vector<Eigen::Vector2d>& pts, const Eigen::Vector2d& obs) {
-    edges.emplace_back();
-    Edge& back = edges.back();
+    edges.clear();
+    while (heap.empty() == false) heap.pop();
+    Edge to_add;
     bool zero_pushed = false;
-    for (size_t i = 1; i < obs.size(); i++) {
+    for (size_t i = 1; i < pts.size(); i++) {
         Eigen::Vector2d vec = pts[i] - pts[i - 1];
         Eigen::Vector2d ctr_vec = (pts[i] + pts[i - 1]) / 2.0 - obs;
         Eigen::Vector2d norm = Eigen::Vector2d(-vec(1), vec(0));
         if (ctr_vec.dot(norm) < 0.0) {
             if (i == 1)
                 zero_pushed = true;
-            back.min_dist = std::min(back.min_dist, pts[i - 1].norm());
-            back.push_back(pts[i - 1]);
+            to_add.min_dist = std::min(to_add.min_dist, (pts[i - 1] - obs).norm());
+            to_add.push_back(pts[i - 1]);
         } else {
-            if (back.empty() == false) {
-                back.emplace_back(pts[i - 1]);
-                edges.emplace_back();
-                back = edges.back();
-                back.min_dist = std::min(back.min_dist, pts[i - 1].norm());
+            if (to_add.empty() == false) {
+                to_add.push_back(pts[i - 1]);
+                edges.push_back(to_add);
+                to_add.reset();
             }
         }
     }
-    Eigen::Vector2d vec = pts.back()- pts.front();
+    Eigen::Vector2d vec = pts.front() - pts.back();
     Eigen::Vector2d ctr_vec = (pts.back() + pts.front()) / 2.0 - obs;
     Eigen::Vector2d norm = Eigen::Vector2d(-vec(1), vec(0));
-    if (back.empty() == false) {
-        back.emplace_back(pts.back());
-        back.min_dist = std::min(back.min_dist, pts[0].norm());
+    if (to_add.empty() == false) {
+        to_add.emplace_back(pts.back());
+        to_add.min_dist = std::min(to_add.min_dist, (pts.back() - obs).norm());
     }
     if (zero_pushed && ctr_vec.dot(norm) < 0.0) {
         Edge& front = edges.front();
-        for (Edge::const_reverse_iterator rit = back.crbegin(); rit != back.crend(); rit++)
+        for (Edge::const_reverse_iterator rit = to_add.crbegin(); rit != to_add.crend(); rit++)
             front.push_front(*rit);
-        front.min_dist = std::min(front.min_dist, back.min_dist);
-        if (edges.size() > 1)
-            edges.pop_back();
+        front.min_dist = std::min(front.min_dist, to_add.min_dist);
+    } else if (to_add.empty() == false) {
+        edges.push_back(to_add);
     }
-    for (Edge& eg: edges) {
+    for (size_t i = 0; i < edges.size(); i++) {
+        Edge& eg = edges[i];
         eg.proj_ids.first = 0;
         eg.proj_ids.second = static_cast<int>(eg.size()) - 1;
         Eigen::Vector2d sbeam = eg.front() - obs;
@@ -102,7 +123,7 @@ void Object::intialize(const std::vector<Eigen::Vector2d>& pts, const Eigen::Vec
         projected = false;
         if (eg.min_dist < min_dist)
             min_dist = eg.min_dist;
-        heap.emplace(&eg);
+        heap.emplace(&edges[i]);
     }
     valid = true;
     projected = false;
@@ -126,7 +147,7 @@ template<bool SET_SRC>
 void Object::projectEdge2Edge(Edge* const src, const Eigen::Vector2d& obs, Edge& dst) {
     std::vector<Eigen::Vector2d> task;
     int first_id = src->proj_ids.first, second_id = src->proj_ids.second, point_num = 0;
-    std::vector<bool> can_proj = {false, false};
+    std::array<bool, 2> can_proj = {false, false};
     if (first_id >= 0)  {
         can_proj[0] = true;
         point_num++;
@@ -141,7 +162,7 @@ void Object::projectEdge2Edge(Edge* const src, const Eigen::Vector2d& obs, Edge&
     if (point_num == 2) {
         // 需要判定，主投影edge的两个点有几个点在被遮挡edge的内部
         // 如果由两个，则有加边逻辑，如果只有一个，则无需加边
-        Eigen::Vector2d fpt = dst[first_id] - obs, ept = dst[second_id] - obs;
+        Eigen::Vector2d fpt = src->at(first_id) - obs, ept = src->at(second_id) - obs;
         double f_ang = atan2(fpt.y(), fpt.x()), e_ang = atan2(ept.y(), ept.x());
         bool head_in_range = dst.angleInRange(f_ang), end_in_range = dst.angleInRange(e_ang);
         if (head_in_range && end_in_range) {        // 需要有加edge逻辑
@@ -149,6 +170,7 @@ void Object::projectEdge2Edge(Edge* const src, const Eigen::Vector2d& obs, Edge&
                 src->proj_ids.first = -1;
                 src->proj_ids.second = -1;
             }
+            LOG_ERROR_STREAM("Breaking edge!");
             breakEdge(fpt, ept, obs, dst, this);
             return;
         } else if (head_in_range) {
@@ -180,7 +202,7 @@ void Object::projectEdge2Edge(Edge* const src, const Eigen::Vector2d& obs, Edge&
             }
             if (SET_SRC) src->proj_ids.first = -1;
         } else if (can_proj.back() == true){
-            beam = src->at(first_id) - obs;
+            beam = src->at(second_id) - obs;
             angle = atan2(beam.y(), beam.x());
             if (dst.notInRangeBigger(angle) == true) {
                 dst.valid = false;
@@ -192,21 +214,24 @@ void Object::projectEdge2Edge(Edge* const src, const Eigen::Vector2d& obs, Edge&
         // 得到的
     }
     size_t id = 1;
-    const Eigen::Vector2d& fpt = dst.front();
+    const Eigen::Vector2d& fpt = dst.front() - obs;
     bool break_flag = false;                        /// TODO: 删除 debug使用
     double last_angle = atan2(fpt.y(), fpt.x()), this_angle = 0.0;
     for (id = 1; id < dst.size(); id++) {
         Eigen::Vector2d vec = dst[id] - obs;
         this_angle = atan2(vec.y(), vec.x());
         if (this_angle <= -PI / 2 && last_angle >= PI / 2) {        // 奇异角度
-            if (angle >= this_angle || angle <= last_angle ) {
+            if (angle <= this_angle || angle >= last_angle ) {
+                break_flag = true;
                 break;
             }
         } else {
-            if (angle >= this_angle && angle <= last_angle) {
+            if (angle <= this_angle && angle >= last_angle) {
+                break_flag = true;
                 break;
             }
         }
+        printf("%lu, ang: %.6lf, last: %.6lf, now: %.6lf\n", id, angle, last_angle, this_angle);
         last_angle = this_angle;
     }
     assert(break_flag == true);
@@ -241,16 +266,20 @@ void Object::breakEdge(Eigen::Vector2d b1, Eigen::Vector2d b2, Eigen::Vector2d o
             Eigen::Vector2d vec = dst[id] - obs;
             this_angle = atan2(vec.y(), vec.x());
             if (this_angle <= -PI / 2 && last_angle >= PI / 2) {        // 奇异角度
-                if (angle >= this_angle || angle <= last_angle ) {
+                if (angle <= this_angle || angle >= last_angle ) {
+                    break_flag = true;
                     break;
                 }
             } else {
-                if (angle >= this_angle && angle <= last_angle) {
+                if (angle <= this_angle && angle >= last_angle) {
+                    break_flag = true;
                     break;
                 }
             }
+            LOG_CHECK("Last angle: %lf, this angle: %lf", last_angle, this_angle);
             last_angle = this_angle;
         }
+        assert(break_flag == true);
         Eigen::Vector2d intersect = getIntersection(beam, dst[id - 1], dst[id], obs);
         crs.emplace_back(intersect);
         ids[i] = dst.size() - id;
@@ -265,9 +294,24 @@ void Object::breakEdge(Eigen::Vector2d b1, Eigen::Vector2d b2, Eigen::Vector2d o
         dst.pop_back();
     dst.push_back(crs[0]);
     dst.angles.second = atan2(task[0].y(), task[0].x());
-    dst.proj_ids.second = static_cast<int>(dst.size()) - 1;
+    dst.proj_ids.second =  -1;
     obj->edges.push_back(new_edge);
     obj->heap.emplace(&obj->edges.back());              // 可能不太安全
+}
+
+void Object::visualizeEdges(cv::Mat& src, cv::Point obs) const{
+    printf("Object: ");
+    for (const Edge& eg: edges) {
+        printf("(%d, %d), ", int(eg.front().x()), int(eg.front().y()));
+        for (size_t i = 1; i < eg.size(); i++) {
+            cv::line(src, cv::Point(eg[i - 1].x(), eg[i - 1].y()), cv::Point(eg[i].x(), eg[i].y()), cv::Scalar(0, 255, 255), 3);
+            printf("(%d, %d), ", int(eg[i].x()), int(eg[i].y()));
+        }
+        printf("\n");
+        cv::circle(src, cv::Point(eg.front().x(), eg.front().y()), 3, cv::Scalar(255, 255, 0), -1);
+        cv::circle(src, cv::Point(eg.back().x(), eg.back().y()), 3, cv::Scalar(255, 0, 255), -1);
+    }
+    cv::circle(src, obs, 4, cv::Scalar(0, 255, 0), -1);
 }
 
 // 根据光源位置，计算光线与线段的交点
@@ -283,7 +327,7 @@ Eigen::Vector2d Object::getIntersection(
     double b1 = Eigen::RowVector2d(-vec(1), vec(0)) * obs;
     double b2 = Eigen::RowVector2d(-vec_line(1), -vec_line(0)) * p1;
     Eigen::Vector2d b(b1, b2);
-    double det = A.determinant();
+    double det = A(0, 0) * A(1, 1) - A(0, 1) * A(1, 0);
     if (std::abs(det) < 1e-5)
         return p1;
     return A.ldlt().solve(b);                   // 解交点
