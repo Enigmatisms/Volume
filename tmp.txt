@@ -1,73 +1,25 @@
-#include "Volume.hpp"
-#include <opencv2/highgui.hpp>
-#include <opencv2/imgproc.hpp>
-
-cv::Mat src;
-cv::Point obs;
-bool obs_set = false;
-
-void on_mouse(int event, int x,int y, int flags, void *ustc) {
-    if (event == cv::EVENT_LBUTTONDOWN && obs_set == false) {
-        printf("cv::Point(%d, %d),\n", x, y);
-        obs.x = x;
-        obs.y = y;
-        cv::circle(src, cv::Point(x, y), 3, cv::Scalar(0, 255, 0), -1);
-        obs_set = true;
-    }
-}
-
-int main(int argc, char** argv) {
     std::vector<std::vector<cv::Point>> obstacles;
-//     std::vector<cv::Point> obstacle = {cv::Point(364, 345),
-// cv::Point(429, 365),
-// cv::Point(498, 363),
-// cv::Point(549, 360),
-// cv::Point(613, 341),
-// cv::Point(608, 310),
-// cv::Point(564, 308),
-// cv::Point(517, 314),
-// cv::Point(441, 315),
-// cv::Point(409, 291),
-// cv::Point(405, 247),
-// cv::Point(442, 213),
-// cv::Point(501, 181),
-// cv::Point(590, 177),
-// cv::Point(692, 197),
-// cv::Point(761, 238),
-// cv::Point(796, 279),
-// cv::Point(811, 330),
-// cv::Point(816, 393),
-// cv::Point(809, 434),
-// cv::Point(786, 478),
-// cv::Point(740, 527),
-// cv::Point(679, 571),
-// cv::Point(545, 636),
-// cv::Point(480, 663),
-// cv::Point(491, 675),
-// cv::Point(567, 662),
-// cv::Point(620, 648),
-// cv::Point(727, 598),
-// cv::Point(811, 532),
-// cv::Point(870, 369),
-// cv::Point(825, 214),
-// cv::Point(695, 125),
-// cv::Point(482, 107),
-// cv::Point(332, 210),
-// cv::Point(335, 301),
-//     };
-
-    std::vector<cv::Point> obstacle = {cv::Point(612, 288),
-cv::Point(544, 348),
-cv::Point(377, 469),
-cv::Point(360, 631),
-cv::Point(396, 737),
-cv::Point(450, 652),
-cv::Point(473, 563),
-cv::Point(548, 472),
-cv::Point(619, 413),
-cv::Point(664, 353),
-cv::Point(677, 292),
-cv::Point(654, 274),
+    std::vector<cv::Point> obstacle = {cv::Point(549, 406),
+cv::Point(497, 413),
+cv::Point(407, 448),
+cv::Point(408, 534),
+cv::Point(414, 630),
+cv::Point(550, 686),
+cv::Point(713, 697),
+cv::Point(809, 647),
+cv::Point(903, 514),
+cv::Point(865, 444),
+cv::Point(798, 406),
+cv::Point(738, 341),
+cv::Point(655, 304),
+cv::Point(590, 298),
+cv::Point(631, 345),
+cv::Point(665, 400),
+cv::Point(684, 480),
+cv::Point(690, 579),
+cv::Point(558, 585),
+cv::Point(521, 553),
+cv::Point(539, 464),
     };
     obstacles.emplace_back(obstacle);
     obstacle.clear();
@@ -98,46 +50,12 @@ cv::Point(654, 274),
 //     };
 //     obstacles.emplace_back(obstacle);
 //     obstacle.clear();
-
-
-
-
-
-
-    obstacle = {cv::Point(525, 134),
-cv::Point(526, 153),
-cv::Point(540, 157),
-cv::Point(558, 145),
-cv::Point(580, 140),
-cv::Point(606, 144),
-cv::Point(642, 164),
-cv::Point(667, 197),
-cv::Point(689, 243),
-cv::Point(695, 285),
-cv::Point(687, 342),
-cv::Point(671, 387),
-cv::Point(644, 440),
-cv::Point(616, 489),
-cv::Point(596, 535),
-cv::Point(574, 593),
-cv::Point(563, 660),
-cv::Point(576, 733),
-cv::Point(602, 716),
-cv::Point(631, 632),
-cv::Point(654, 557),
-cv::Point(701, 471),
-cv::Point(742, 364),
-cv::Point(743, 281),
-cv::Point(734, 185),
-cv::Point(661, 120),
-cv::Point(563, 106)};
+    obstacle = {cv::Point(462, 328),
+cv::Point(472, 356),
+cv::Point(499, 335),
+cv::Point(486, 308)};
     obstacles.emplace_back(obstacle);
     obstacle.clear();
-
-
-
-
-
 //     obstacle = {cv::Point(165, 593),
 // cv::Point(182, 654),
 // cv::Point(252, 652),
@@ -170,32 +88,3 @@ cv::Point(563, 106)};
     // std::vector<cv::Point> obstacle = {cv::Point(936, 526), cv::Point(967, 552), cv::Point(969, 604), cv::Point(896, 622), cv::Point(839, 603), cv::Point(856, 651), cv::Point(833, 686), cv::Point(763, 681), cv::Point(729, 668), cv::Point(749, 725), cv::Point(851, 765), cv::Point(980, 734), cv::Point(1049, 676), cv::Point(1034, 591), cv::Point(981, 540)};
     // obstacles.emplace_back(obstacle);
     // obstacle.clear();
-    printf("Obstacle initialized, obstacle size: %lu\n", obstacles.size());
-
-    src.create(cv::Size(1200, 900), CV_8UC3);
-    cv::drawContours(src, obstacles, -1, cv::Scalar(80, 80, 80), -1);
-    for (const Obstacle& egs: obstacles) {
-        cv::circle(src, egs.front(), 3, cv::Scalar(0, 0, 255), -1);
-        cv::circle(src, egs.back(), 3, cv::Scalar(255, 0, 0), -1);
-    }
-    cv::namedWindow("disp", cv::WINDOW_AUTOSIZE);
-    cv::setMouseCallback("disp", on_mouse, NULL);
-    Volume vol;
-    obs = cv::Point(165, 339);
-    // obs = cv::Point(416, 512);
-    // obs = cv::Point(648, 254);
-    // obs = cv::Point(452, 472);
-    while (obs_set == false) {
-        cv::imshow("disp", src);
-        char key = cv::waitKey(10);
-        if (key == 27)
-            return 0;
-    }
-    vol.calculateVisualSpace(obstacles, obs, src);
-    vol.simplePreVisualize(src, obs);
-    // vol.visualizeVisualSpace(obstacles, Eigen::Vector2d(obs.x, obs.y), src);
-    cv::imshow("disp", src);
-    cv::waitKey(0);
-    cv::destroyAllWindows();
-    return 0;
-}

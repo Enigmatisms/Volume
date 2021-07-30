@@ -5,12 +5,23 @@
 #include "Edge.hpp"
 #include "LOG.hpp"
 
+/// @ref https://stackoverflow.com/questions/8372918/c-std-list-sort-with-custom-comparator-that-depends-on-an-member-variable-for 
+struct EdgeCompFunctor{
+    EdgeCompFunctor(const std::vector<Edge>& _egs): egs(_egs) {
+        LOG_GAY("Constructing functor: egs size: %lu, address: %x", _egs.size(), &egs);
+    }
+    const std::vector<Edge>& egs;
+    bool operator() (const size_t& e1, const size_t& e2) const {
+        return egs[e1].min_dist > egs[e2].min_dist;
+    }
+};
+
 // 物体定义，物体内部有很多edge
 class Object {
+using HeapType = std::priority_queue<size_t, std::vector<size_t>, EdgeCompFunctor>;
 public:
-    Object(int _id = 0): id(_id), functor(edges), heap(functor){
+    Object(int _id = 0): id(_id){
         min_dist = 1e9;
-        LOG_MARK("Object address: %x, functor size: %lu, address: %x", &edges, functor.egs.size(), &functor.egs);
     }
     ~Object() {}
 public:
@@ -30,16 +41,12 @@ public:
     // 以一个edge进行投影，修改余下的edge
     // 内部三投影方式不修改堆
 private:
-    bool operator() (size_t e1, size_t e2) const {
-        return edges[e1].min_dist > edges[e2].min_dist;
-    }
-
     void externalProjector(Edge& src, const Eigen::Vector2d& obs);
 
-    template<bool SET_SRC = true>
-    void projectEdge2Edge(Edge& src, const Eigen::Vector2d& obs, Edge& dst);
+    /// @brief returns whether a false choice is being operated
+    void projectEdge2Edge(const Edge& src, const Eigen::Vector2d& obs, Edge& dst, HeapType& heap);
 
-    void breakEdge(Eigen::Vector2d b1, Eigen::Vector2d b2, Eigen::Vector2d obs, Edge& dst);
+    void breakEdge(Eigen::Vector2d b1, Eigen::Vector2d b2, Eigen::Vector2d obs, Edge& dst, HeapType& heap);
 
     // 根据光源位置，计算光线与线段的交点
     static Eigen::Vector2d getIntersection(
@@ -55,18 +62,5 @@ public:
     bool projected;
     double min_dist;
     std::vector<Edge> edges;
-
-    /// @ref https://stackoverflow.com/questions/8372918/c-std-list-sort-with-custom-comparator-that-depends-on-an-member-variable-for 
-    struct EdgeCompFunctor{
-        EdgeCompFunctor(const std::vector<Edge>& _egs): egs(_egs) {
-            LOG_GAY("Constructing functor: egs size: %lu, address: %x", _egs.size(), &egs);
-        }
-        const std::vector<Edge>& egs;
-        bool operator() (const size_t& e1, const size_t& e2) const {
-            return egs[e1].min_dist > egs[e2].min_dist;
-        }
-    } functor;
-
-    std::priority_queue<size_t, std::vector<size_t>, EdgeCompFunctor> heap;
     std::pair<double, double> angle_range;
 };

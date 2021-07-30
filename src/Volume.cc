@@ -28,26 +28,17 @@ void Volume::calculateVisualSpace(const std::vector<Obstacle>& _obstcs, cv::Poin
     for (const std::vector<Eigen::Vector2d>& obstacle: obstcs) {            // 构建objects
         Object obj(obj_cnt);
         obj.intialize(obstacle, observing_point);
-        LOG_SHELL("After init (2), functor size: %lu, address: %x", obj.functor.egs.size(), &obj.functor.egs);
         objs.push_back(obj);
         obj_cnt++;
     }
-    
-    for (const Object& obj: objs) {
-        LOG_SHELL("After init (3), functor size: %lu, address: %x", obj.functor.egs.size(), &obj.functor.egs);
-    }
+    // simplePreVisualize(src, obs);
     for (size_t i = 0; i < objs.size(); i++)            // 构建堆
         heap.emplace(i);
-    for (const Object& obj: objs) {
-        LOG_SHELL("After init (4), functor size: %lu, address: %x", obj.functor.egs.size(), &obj.functor.egs);
-    }
     while (heap.empty() == false) {
         size_t obj_id = heap.top();
         Object& obj = objs[obj_id];
-        obj.projected = true;
         heap.pop();
         LOG_ERROR("Object %d, started to internal project.", obj_id);
-        LOG_INFO("Before internal, functor size: %lu, address: %x", obj.functor.egs.size(), &obj.functor.egs);
         obj.internalProjection(observing_point);
         LOG_MARK("Object %d, started to external project.", obj_id);
         size_t i = 0;
