@@ -22,22 +22,6 @@ public:
             return (angle > angles.first) && (angle < angles.second);
         }
     }
-    
-    bool notInRangeSmaller(double angle) const {
-        if (angles.first > 0 && angles.second < 0) {        // 跨越奇异
-            return (angle < angles.first) && (angle > angles.second);
-        } else {
-            return (angle < angles.first);
-        }
-    }
-
-    bool notInRangeBigger(double angle) const {
-        if (angles.first > 0 && angles.second < 0) {        // 跨越奇异
-            return (angle < angles.first) && (angle > angles.second);
-        } else {
-            return (angle > angles.second);
-        }
-    }
 
     void reset() {
         clear();

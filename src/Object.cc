@@ -19,16 +19,13 @@ void Object::internalProjection(const Eigen::Vector2d& obs) {
         heap.pop();
         if (this_edge.valid == false) continue;
         this_edge.projected = true;
-        size_t i = 0;
-        for (Edge& eg: edges) {
-            if (eg.valid == false || eg.projected == true) {
-                i++;
+        for (size_t i = 0; i < edges.size(); i++) {
+            Edge& eg = edges[i];
+            if (eg.valid == false)
                 continue;
-            }
             LOG_INFO("Before proj (%lu), proj ids is: %d, %d", i, this_edge.proj_ids.first, this_edge.proj_ids.second);
             projectEdge2Edge(this_edge, obs, eg, heap);
             LOG_SHELL("After proj (%lu), proj ids is: %d, %d", i, this_edge.proj_ids.first, this_edge.proj_ids.second);
-            i++;
         }
         LOG_MARK_STREAM("After internal proj once, info:");
         for (Edge& eg: edges) {
@@ -41,10 +38,9 @@ void Object::internalProjection(const Eigen::Vector2d& obs) {
 void Object::externalOcclusion(Object& obj, Eigen::Vector2d obs) {
     for (size_t i = 0; i < edges.size(); i++) {
         Edge& eg = edges[i];
+        LOG_CHECK("Other object is being occ by edge %lu, f: %d, s:%d", i, eg.proj_ids.first, eg.proj_ids.second);
         if (eg.valid == false) continue;
         if (eg.proj_ids.first < 0 && eg.proj_ids.second < 0) continue;
-        if (obj.min_dist < eg.min_dist) continue;
-        LOG_CHECK("Other object is being occ by edge %lu, ", i);
         // obj 是被本object选中的eg遮挡
         obj.externalProjector(eg, obs);
     }
@@ -54,6 +50,7 @@ void Object::externalOcclusion(Object& obj, Eigen::Vector2d obs) {
 // 内部三投影方式不修改堆
 void Object::externalProjector(Edge& src, const Eigen::Vector2d& obs) {
     // 别的object产生的投影，也是需要使用到这样一个heap的，而pop操作会破怪heap
+    printf("External projection started.\n");
     HeapType heap(edges);
     for (size_t i = 0; i < edges.size(); i++)
         heap.emplace(i);
@@ -141,12 +138,10 @@ void Object::intialize(const std::vector<Eigen::Vector2d>& pts, const Eigen::Vec
         Eigen::Vector2d ebeam = eg.back() - obs;
         eg.angles.second = atan2(ebeam.y(), ebeam.x());
         eg.valid = true;
-        projected = false;
         if (eg.min_dist < min_dist)
             min_dist = eg.min_dist;
     }
     valid = true;
-    projected = false;
 }
 
 // make polygons for render(ing)，输出供opencv使用的多边形
@@ -243,6 +238,7 @@ void Object::projectEdge2Edge(const Edge& src, const Eigen::Vector2d& obs, Edge&
     const Eigen::Vector2d& fpt = dst.front() - obs;
     bool break_flag = false;                        /// TODO: 删除 debug使用
     double last_angle = atan2(fpt.y(), fpt.x()), this_angle = 0.0;
+    /// @todo binary search for acceleration
     for (id = 1; id < dst.size(); id++) {
         Eigen::Vector2d vec = dst[id] - obs;
         this_angle = atan2(vec.y(), vec.x());
@@ -262,6 +258,8 @@ void Object::projectEdge2Edge(const Edge& src, const Eigen::Vector2d& obs, Edge&
     }
     assert(break_flag == true);
     /// 交点计算的逻辑检查
+    /// 此处检查range 
+    if (rangeSuitable(dst[id - 1], dst[id], beam, obs) == false) return;
     Eigen::Vector2d intersect = getIntersection(beam, dst[id - 1], dst[id], obs);
     if (pop_back_flag == true) {            // 删除大角度
         size_t delete_cnt = dst.size() - id;
@@ -317,6 +315,7 @@ void Object::breakEdge(Eigen::Vector2d b1, Eigen::Vector2d b2, Eigen::Vector2d o
             last_angle = this_angle;
         }
         assert(break_flag == true);
+        if (rangeSuitable(dst[id - 1], dst[id], beam, obs) == false) return;
         Eigen::Vector2d intersect = getIntersection(beam, dst[id - 1], dst[id], obs);
         crs.emplace_back(intersect);
         ids[i] = dst.size() - id;
@@ -381,4 +380,15 @@ Eigen::Vector2d Object::getIntersection(
     if (std::abs(det) < 1e-5)
         return p1;
     return A.inverse() * b;                   // 解交点
+}
+
+bool Object::rangeSuitable(
+    const Eigen::Vector2d& p1, 
+    const Eigen::Vector2d& p2, 
+    const Eigen::Vector2d& beam, 
+    const Eigen::Vector2d& obs
+) const {
+    Eigen::Vector2d v1 = p1 - obs, v2 = p2 - obs;
+    double mean_range = (v1.norm() + v2.norm()) / 2.0;
+    return beam.norm() < mean_range;
 }

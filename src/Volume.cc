@@ -41,15 +41,13 @@ void Volume::calculateVisualSpace(const std::vector<Obstacle>& _obstcs, cv::Poin
         LOG_ERROR("Object %d, started to internal project.", obj_id);
         obj.internalProjection(observing_point);
         LOG_MARK("Object %d, started to external project.", obj_id);
-        size_t i = 0;
         for (Object& projectee: objs) {
             // 不查看完全被遮挡的，不投影已经投影过的
             LOG_CHECK_STREAM("Projectee selected.");
-            if (projectee.valid == false || projectee.projected == true) continue;
-            LOG_GAY("External occ, object %lu", i);
+            if (projectee.valid == false || obj.id == projectee.id) continue;
+            LOG_GAY("External occ, object %lu", projectee.id);
             // 选择projectee被投影
             obj.externalOcclusion(projectee, observing_point);
-            i++;
         }
     }
 }
