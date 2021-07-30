@@ -1,6 +1,8 @@
 #include "Edge.hpp"
+#include "LOG.hpp"
 
 void Edge::initWithObs(Eigen::Vector2d obs) {
+    LOG_CHECK("Init with obs, this address is: %x, size is %lu", this, this->size());
     proj_ids.first = -1;                            // 打断式投影的第二个edge中少一个投影点
     proj_ids.second = static_cast<int>(this->size()) - 1;
     Eigen::Vector2d front_beam = this->front() - obs, back_beam = this->back() - obs;

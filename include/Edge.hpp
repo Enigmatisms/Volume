@@ -11,7 +11,10 @@ public:
     bool valid = true;                      // 是否完全被遮挡
     bool projected = false;                 // 是否投影过
 public:
-    Edge() {reset();}
+    Edge() {
+        reset();
+    }
+
     bool angleInRange(double angle) const {
         if (angles.first > 0 && angles.second < 0) {        // 跨越奇异
             return (angle > angles.first) || (angle < angles.second);

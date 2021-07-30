@@ -3,20 +3,17 @@
 #include <opencv2/core.hpp>
 #include <opencv2/imgproc.hpp>
 #include "Edge.hpp"
-
-struct EdgeCompFunctor{
-    bool operator() (const Edge* const e1, const Edge* const e2) const {
-        return e1->min_dist > e2->min_dist;
-    }
-};
+#include "LOG.hpp"
 
 // 物体定义，物体内部有很多edge
 class Object {
 public:
-    Object(int _id = 0): id(_id) {}
+    Object(int _id = 0): id(_id), functor(edges), heap(functor){
+        min_dist = 1e9;
+        LOG_MARK("Object address: %x, functor size: %lu, address: %x", &edges, functor.egs.size(), &functor.egs);
+    }
     ~Object() {}
 public:
-    // 内部投影，自我更新
     // 内部投影之后，一个object内部最多还有两条可以投影的edge，只需要遍历即可
     void internalProjection(const Eigen::Vector2d& obs);
 
@@ -33,12 +30,16 @@ public:
     // 以一个edge进行投影，修改余下的edge
     // 内部三投影方式不修改堆
 private:
-    void externalProjector(Edge* const src, const Eigen::Vector2d& obs);
+    bool operator() (size_t e1, size_t e2) const {
+        return edges[e1].min_dist > edges[e2].min_dist;
+    }
+
+    void externalProjector(Edge& src, const Eigen::Vector2d& obs);
 
     template<bool SET_SRC = true>
-    void projectEdge2Edge(Edge* const src, const Eigen::Vector2d& obs, Edge& dst);
+    void projectEdge2Edge(Edge& src, const Eigen::Vector2d& obs, Edge& dst);
 
-    void breakEdge(Eigen::Vector2d b1, Eigen::Vector2d b2, Eigen::Vector2d obs, Edge& dst, Object* const obj);
+    void breakEdge(Eigen::Vector2d b1, Eigen::Vector2d b2, Eigen::Vector2d obs, Edge& dst);
 
     // 根据光源位置，计算光线与线段的交点
     static Eigen::Vector2d getIntersection(
@@ -54,6 +55,18 @@ public:
     bool projected;
     double min_dist;
     std::vector<Edge> edges;
-    std::priority_queue<Edge*, std::vector<Edge*>, EdgeCompFunctor> heap;
+
+    /// @ref https://stackoverflow.com/questions/8372918/c-std-list-sort-with-custom-comparator-that-depends-on-an-member-variable-for 
+    struct EdgeCompFunctor{
+        EdgeCompFunctor(const std::vector<Edge>& _egs): egs(_egs) {
+            LOG_GAY("Constructing functor: egs size: %lu, address: %x", _egs.size(), &egs);
+        }
+        const std::vector<Edge>& egs;
+        bool operator() (const size_t& e1, const size_t& e2) const {
+            return egs[e1].min_dist > egs[e2].min_dist;
+        }
+    } functor;
+
+    std::priority_queue<size_t, std::vector<size_t>, EdgeCompFunctor> heap;
     std::pair<double, double> angle_range;
 };
