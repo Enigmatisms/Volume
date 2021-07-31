@@ -42,11 +42,11 @@ include_directories(
 
 aux_source_directory(src/ SRC)
 
-add_executable(debug debug.cc
+add_executable(editor mapEditor.cc
   ${SRC}
 )
 
-target_link_libraries(debug
+target_link_libraries(editor
   ${OpenCV_LIBS}
   pthread
 )

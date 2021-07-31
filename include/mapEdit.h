@@ -7,7 +7,7 @@
 
 typedef std::vector<cv::Point> Obstacle;
 
-void mapDraw(const std::vector<Obstacle>& obstalces, cv::Mat& src);
+void mapDraw(const std::vector<Obstacle>& obstalces, const Obstacle& obst, cv::Mat& src);
 
 void mapLoad(std::string path, std::vector<std::vector<cv::Point>>& obstacles);
 
