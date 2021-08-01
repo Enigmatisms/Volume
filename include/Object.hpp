@@ -39,7 +39,8 @@ private:
         const Eigen::Vector3d& p1, 
         const Eigen::Vector3d& p2, 
         const Eigen::Vector2d& beam, 
-        const Eigen::Vector2d& obs
+        const Eigen::Vector2d& obs,
+        Eigen::Vector3d& intersect
     ) const;
 
     void externalProjector(Edge& src, const Eigen::Vector2d& obs);

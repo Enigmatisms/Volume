@@ -43,18 +43,29 @@ void Volume::calculateVisualSpace(const std::vector<Obstacle>& _obstcs, cv::Poin
         LOG_MARK("Object %d, started to external project.", obj_id);
         for (Object& projectee: objs) {
             // 不查看完全被遮挡的，不投影已经投影过的
-            LOG_CHECK_STREAM("Projectee selected.");
             if (projectee.valid == false || obj.id == projectee.id) continue;
             LOG_GAY("External occ, object %lu", projectee.id);
             // 选择projectee被投影
             obj.externalOcclusion(projectee, observing_point);
+            LOG_CHECK("Projectee (%d) processed, edges (valid):", projectee.id);
+            for (const Edge& eg: projectee.edges)
+                printf("%d, ", eg.valid);
+            printf("\n");
         }
+        LOG_SHELL("After external proj, valids in object %d are:", obj_id);
+        for (const Edge& eg: obj.edges)
+            printf("%d, ", eg.valid);
+        printf("\n");
     }
 }
 
 void Volume::simplePreVisualize(cv::Mat& src, const cv::Point& obs) const {
     for (const Object& obj: objs) {
         obj.visualizeEdges(src, obs);
+        char str[8];
+        snprintf(str, 8, "%d", obj.id);
+		cv::putText(src, str, cv::Point(obj.edges.front().back().x(), obj.edges.front().back().y()) + cv::Point(10, 10),
+				cv::FONT_HERSHEY_PLAIN, 1.5, cv::Scalar(0, 255, 255));
     }
     cv::imshow("tmp", src);
     cv::waitKey(0);

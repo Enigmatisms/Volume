@@ -9,7 +9,6 @@ const double PI = 3.141592653589793238;
 void Object::internalProjection(const Eigen::Vector2d& obs) {
     // 每一次被选中投影之后，自身队列没有必要存在了
     /// @todo: heap没能成功关联 
-    printf("Internal proj, edges size: %lu\n", edges.size());
     HeapType heap(edges);
     for (size_t i = 0; i < edges.size(); i++)
         heap.emplace(i);
@@ -20,23 +19,17 @@ void Object::internalProjection(const Eigen::Vector2d& obs) {
         if (this_edge.valid == false) continue;
         for (size_t i = 0; i < edges.size(); i++) {
             Edge& eg = edges[i];
-            if (eg.valid == false)
+            if (eg.valid == false || &eg == &this_edge)
                 continue;
-            LOG_INFO("Before proj (%lu), proj ids is: %d, %d", i, this_edge.proj_ids.first, this_edge.proj_ids.second);
             projectEdge2Edge(this_edge, obs, eg, heap);
-            LOG_SHELL("After proj (%lu), proj ids is: %d, %d", i, this_edge.proj_ids.first, this_edge.proj_ids.second);
         }
-        LOG_MARK_STREAM("After internal proj once, info:");
     }
 }
 
 void Object::externalOcclusion(Object& obj, Eigen::Vector2d obs) {
     for (size_t i = 0; i < edges.size(); i++) {
         Edge& eg = edges[i];
-        LOG_CHECK("Other object is being occ by edge %lu, f: %d, s:%d", i, eg.proj_ids.first, eg.proj_ids.second);
         if (eg.valid == false) continue;
-        if (eg.proj_ids.first < 0 && eg.proj_ids.second < 0) continue;
-        // obj 是被本object选中的eg遮挡
         obj.externalProjector(eg, obs);
     }
 }
@@ -45,7 +38,6 @@ void Object::externalOcclusion(Object& obj, Eigen::Vector2d obs) {
 // 内部三投影方式不修改堆
 void Object::externalProjector(Edge& src, const Eigen::Vector2d& obs) {
     // 别的object产生的投影，也是需要使用到这样一个heap的，而pop操作会破怪heap
-    printf("External projection started.\n");
     HeapType heap(edges);
     for (size_t i = 0; i < edges.size(); i++)
         heap.emplace(i);
@@ -55,13 +47,7 @@ void Object::externalProjector(Edge& src, const Eigen::Vector2d& obs) {
         heap.pop();
         if (this_edge.valid == false) continue;
         int fx = this_edge.front().x(), fy = this_edge.front().y(), bx = this_edge.back().x(), by = this_edge.back().y();
-        LOG_INFO("Edge from (%d, %d) to (%d, %d) in the object (%lu) is being shadowed.", fx, fy, bx, by, id);
         projectEdge2Edge(src, obs, this_edge, heap);
-        LOG_MARK("After shadowing, this edge: %d, all others:", int(this_edge.valid));
-        for (size_t i = 0; i < edges.size(); i++) {
-            printf("%d, ", int(edges[i].valid));
-        }
-        printf("\n");
     }
     // 需要重新建堆
     bool valid_flag = false;
@@ -120,6 +106,11 @@ void Object::intialize(const std::vector<Eigen::Vector2d>& pts, const Eigen::Vec
                     front.push_front(*rit);
             }
         } else {
+            if (to_add.size() == 0) {
+                Eigen::Vector2d o2p = pts.back() - obs;
+                to_add.emplace_back();
+                to_add.back() << pts.back(), atan2(o2p(1), o2p(0));  
+            }
             Eigen::Vector2d o2p = pts.front() - obs;
             to_add.emplace_back();
             to_add.back() << pts.front(), atan2(o2p(1), o2p(0));
@@ -160,7 +151,6 @@ void Object::makePolygons4Render(Eigen::Vector2d obs, std::vector<std::vector<cv
 
 // 内部投影也需要考虑加edge了
 void Object::projectEdge2Edge(const Edge& src, const Eigen::Vector2d& obs, Edge& dst, HeapType& heap) {
-    LOG_CHECK("Edge(%x) is being processed. (%d, %d), (%d, %d)", &dst, dst.proj_ids.first, dst.proj_ids.second, src.proj_ids.first, src.proj_ids.second);
     int first_id = src.proj_ids.first, second_id = src.proj_ids.second, point_num = 0;
     std::array<bool, 2> can_proj = {false, false};
     if (first_id >= 0)  {
@@ -169,7 +159,12 @@ void Object::projectEdge2Edge(const Edge& src, const Eigen::Vector2d& obs, Edge&
     }    
     if (second_id >= 0) {
         can_proj[1] = true;
-        point_num++;  
+        point_num++;
+    }
+    if (first_id < 0 && second_id < 0) {
+        first_id = 0;
+        second_id = static_cast<int>(src.size()) - 1;
+        point_num = 2;
     }
     bool pop_back_flag = true;
     Eigen::Vector2d beam = Eigen::Vector2d::Zero();
@@ -189,9 +184,27 @@ void Object::projectEdge2Edge(const Edge& src, const Eigen::Vector2d& obs, Edge&
             beam = ept;
             angle = e_ang;
             pop_back_flag = false;          // pop_front
-        } else {
-            if (src.angleInRange(dst.front().z()) || src.angleInRange(dst.back().z()))
-                dst.valid = false;
+        } else {        // SRC的两个端点不在DST范围内（有可能完全遮挡的）
+            const Eigen::Vector2d dst_f = dst.front().block<2, 1>(0, 0) - obs, dst_b = dst.back().block<2, 1>(0, 0) - obs;
+            if (dst_f.dot(fpt) < 0.0 && dst_b.dot(ept) < 0.0) return;
+            // 此处的逻辑不够完备，判定全覆盖不是这么简单的事情
+            const Eigen::Vector2d s2s = src.back().block<2, 1>(0, 0) - dst.back().block<2, 1>(0, 0),
+                    f2f = src.front().block<2, 1>(0, 0) - dst.front().block<2, 1>(0, 0);
+            const Eigen::Vector2d ns2s(-s2s(1), s2s(0)), nf2f(-f2f(1), f2f(0));       // f2f 要>=0，s2s <= 0
+            if (nf2f.dot(dst_f) < -margin || ns2s.dot(dst_b) > margin) return;
+            int id = src.rotatedBinarySearch(dst.front().z());
+            if (id > 0) {
+                Eigen::Vector3d tmp;
+                bool dst_closer = rangeSuitable(src[id - 1], src[id], dst_f, obs, tmp);
+                if (dst_closer == true) return;
+            }
+            id = src.rotatedBinarySearch(dst.back().z());
+            if (id > 0) {
+                Eigen::Vector3d tmp;
+                bool dst_closer = rangeSuitable(src[id - 1], src[id], dst_b, obs, tmp);
+                if (dst_closer == true) return;        // 投影边的range更大
+            }
+            dst.valid = false;
             return;
         }
     } else {
@@ -207,7 +220,13 @@ void Object::projectEdge2Edge(const Edge& src, const Eigen::Vector2d& obs, Edge&
             const Eigen::Vector2d nf2f(-f2f(1), f2f(0)), ns2f(-s2f(1), s2f(0)), nf2s(-f2s(1), f2s(0));
             if (nf2f.dot(o2f) >= 0) {           // src.first 超过 dst.first 可全覆盖
                 if (nf2s.dot(o2f) < 0) {        // src.second 不超过 dst.first 真全覆盖
-                    dst.valid = false;
+                    int s_id = src.rotatedBinarySearch(dst.front().z());
+                    if (s_id > 0) {
+                        Eigen::Vector3d intersect = Eigen::Vector3d::Zero();
+                        bool dst_closer = rangeSuitable(src[s_id - 1], src[s_id], o2f, obs, intersect);
+                        if (dst_closer == false)
+                            dst.valid = false;
+                    }
                 }
                 return;
             } else if (ns2f.dot(o2s) < 0) {     // src.first 超过 dst.second
@@ -225,7 +244,14 @@ void Object::projectEdge2Edge(const Edge& src, const Eigen::Vector2d& obs, Edge&
             const Eigen::Vector2d ns2s(-s2s(1), s2s(0)), ns2f(-s2f(1), s2f(0)), nf2s(-f2s(1), f2s(0));        // 求法向量
             if (ns2s.dot(o2s) < 0) {            // src.second 超过 dst.second 可能全覆盖
                 if (ns2f.dot(o2s) >= 0) {        // src.first 不超过 dst.second 说明真全覆盖
-                    dst.valid = false;
+                    // 反向搜索逻辑，dst的两个angle比较range
+                    int e_id = src.rotatedBinarySearch(dst.back().z());
+                    if (e_id > 0) {
+                        Eigen::Vector3d intersect = Eigen::Vector3d::Zero();
+                        bool dst_closer = rangeSuitable(src[e_id - 1], src[e_id], o2s, obs, intersect);
+                        if (dst_closer == false)
+                            dst.valid = false;
+                    }
                 } 
                 return;
             } else if (nf2s.dot(o2f) >= 0) {    // src.second 不超过 dst.first 完全无关
@@ -239,11 +265,10 @@ void Object::projectEdge2Edge(const Edge& src, const Eigen::Vector2d& obs, Edge&
     }
     int id = dst.rotatedBinarySearch(angle);
     assert(id > 0);
-    if (rangeSuitable(dst[id - 1], dst[id], beam, obs) == false) return;
-    Eigen::Vector3d intersect = getIntersection(beam, dst[id - 1], dst[id], obs);
+    Eigen::Vector3d intersect = Eigen::Vector3d::Zero();
+    if (rangeSuitable(dst[id - 1], dst[id], beam, obs, intersect) == false) return;
     if (pop_back_flag == true) {            // 删除大角度
         int delete_cnt = static_cast<int>(dst.size()) - id;
-        // LOG_GAY("Deleting backs. delete cnt is %lu, size is %lu", delete_cnt, dst.size());
         for (int i = 0; i < delete_cnt; i++)
             dst.pop_back();
         dst.emplace_back(intersect);
@@ -264,14 +289,16 @@ void Object::projectEdge2Edge(const Edge& src, const Eigen::Vector2d& obs, Edge&
 }
 
 void Object::breakEdge(Eigen::Vector2d b1, Eigen::Vector2d b2, Eigen::Vector2d obs, Edge& dst, HeapType& heap) {
+    //
     std::array<Eigen::Vector2d, 2> task = {b1, b2};
     std::vector<Eigen::Vector3d> crs;
     std::array<size_t, 2> ids = {0, 0};
     for (size_t i = 0; i < 2; i++) {
         const Eigen::Vector2d& beam = task[i];
-        int id = dst.rotatedBinarySearch(dst.front().z());
-        if (rangeSuitable(dst[id - 1], dst[id], beam, obs) == false) return;
-        Eigen::Vector3d intersect = getIntersection(beam, dst[id - 1], dst[id], obs);
+        double this_angle = atan2(beam(1), beam(0));
+        int id = dst.rotatedBinarySearch(this_angle);
+        Eigen::Vector3d intersect = Eigen::Vector3d::Zero();
+        if (rangeSuitable(dst[id - 1], dst[id], beam, obs, intersect) == false) return;
         crs.emplace_back(intersect);
         ids[i] = dst.size() - static_cast<size_t>(id);
     }
@@ -280,7 +307,7 @@ void Object::breakEdge(Eigen::Vector2d b1, Eigen::Vector2d b2, Eigen::Vector2d o
     for (Edge::const_reverse_iterator rit = dst.crbegin(); rit != dst.crend() && add_cnt < ids[1]; rit++, add_cnt++)
         new_edge.push_front(*rit);
     new_edge.push_front(crs[1]);
-    new_edge.initWithObs(obs);
+    new_edge.initWithObs(obs, dst.proj_ids.second);
     for (size_t i = 0; i < ids[0]; i++)
         dst.pop_back();
     dst.push_back(crs[0]);
@@ -294,21 +321,17 @@ void Object::breakEdge(Eigen::Vector2d b1, Eigen::Vector2d b2, Eigen::Vector2d o
 }
 
 void Object::visualizeEdges(cv::Mat& src, cv::Point obs) const{
-    printf("Object: ");
     if (valid == false)
         return;
-    int i = -1;
+    int cnt = -1;
     for (const Edge& eg: edges) {
-        i++;
+        cnt++;
         if (eg.valid == false) continue;
-        printf("(%d, %d), ", int(eg.front().x()), int(eg.front().y()));
         for (size_t i = 1; i < eg.size(); i++) {
             cv::line(src, cv::Point(eg[i - 1].x(), eg[i - 1].y()), cv::Point(eg[i].x(), eg[i].y()), cv::Scalar(0, 255, 255), 3);
-            printf("(%d, %d), ", int(eg[i].x()), int(eg[i].y()));
         }
-        printf("\n");
-        char str[4];
-        snprintf(str, 4, "%d", i);
+        char str[8];
+        snprintf(str, 8, "%d:%lu", cnt, eg.size());
 		cv::putText(src, str, cv::Point(eg.front().x(), eg.front().y()) + cv::Point(10, 10),
 					cv::FONT_HERSHEY_PLAIN, 1, cv::Scalar(0, 255, 0));
         cv::circle(src, cv::Point(eg.front().x(), eg.front().y()), 3, cv::Scalar(255, 255, 0), -1);
@@ -345,9 +368,10 @@ bool Object::rangeSuitable(
     const Eigen::Vector3d& p1, 
     const Eigen::Vector3d& p2, 
     const Eigen::Vector2d& beam, 
-    const Eigen::Vector2d& obs
+    const Eigen::Vector2d& obs,
+    Eigen::Vector3d& intersect
 ) const {
-    Eigen::Vector2d v1 = p1.block<2, 1>(0, 0) - obs, v2 = p2.block<2, 1>(0, 0) - obs;
-    double mean_range = (v1.norm() + v2.norm()) / 2.0;
-    return beam.norm() < mean_range;
+    intersect = getIntersection(beam, p1, p2, obs);
+    double range = (intersect.block<2, 1>(0, 0) - obs).norm();
+    return beam.norm() < range;
 }

@@ -2,6 +2,8 @@
 #include <Eigen/Core>
 #include <queue>
 
+const double margin = 1e-6;
+
 // 投影边
 class Edge: public std::deque<Eigen::Vector3d> {
 public:
@@ -11,11 +13,20 @@ public:
 public:
     Edge() {reset();}
 
+    template<bool shrink = true>
     bool angleInRange(double angle) const {
-        if (this->front().z() > this->back().z()) {        // 跨越奇异
-            return (angle > this->front().z()) || (angle < this->back().z());
+        if (shrink) {
+            if (this->front().z() > this->back().z()) {        // 跨越奇异
+                return (angle > this->front().z() + margin) || (angle < this->back().z() - margin);
+            } else {
+                return (angle > this->front().z() + margin) && (angle < this->back().z() - margin);
+            }
         } else {
-            return (angle > this->front().z()) && (angle < this->back().z());
+            if (this->front().z() > this->back().z()) {        // 跨越奇异
+                return (angle > this->front().z() - margin) || (angle < this->back().z() + margin);
+            } else {
+                return (angle > this->front().z() - margin) && (angle < this->back().z() + margin);
+            }
         }
     }
 
@@ -27,7 +38,7 @@ public:
         valid = true;
     }
 
-    void initWithObs(Eigen::Vector2d obs);            // 根据观测点，初始化角度以及ids
+    void initWithObs(Eigen::Vector2d obs, int second_id);            // 根据观测点，初始化角度以及ids
     
     int rotatedBinarySearch(double angle) const;            // binary search acceleration
 private:

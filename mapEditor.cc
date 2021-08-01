@@ -20,6 +20,10 @@ int main(int argc, char** argv) {
     cv::rectangle(src, rect, cv::Scalar(100, 100, 100), -1);
     cv::namedWindow("disp", cv::WINDOW_AUTOSIZE);
     cv::setMouseCallback("disp", on_mouse, NULL);
+    std::string name = "test";
+    if (argc >= 2) {
+        name = std::string(argv[1]);
+    }
     while (true) {
         mapDraw(obsts, obstacle, src);
         cv::imshow("disp", src);
@@ -37,7 +41,7 @@ int main(int argc, char** argv) {
                 obsts.emplace_back(obstacle);
                 obstacle.clear();
             }
-            mapSave(obsts, "../maps/test.txt");
+            mapSave(obsts, "../maps/" + name + ".txt");
             printf("Map saved.\n");
             break;
         }
