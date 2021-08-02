@@ -11,7 +11,7 @@
 #include <sstream>
 #undef Log
 
-#define LOG_DEBUG
+// #define LOG_DEBUG
 #ifdef LOG_DEBUG
     #define log_debug Log::LogInfo
     #define log_printf Log::printc

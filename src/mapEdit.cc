@@ -1,6 +1,5 @@
 #include "mapEdit.h"
 
-
 void mapDraw(const std::vector<Obstacle>& obstalces, const Obstacle& obst, cv::Mat& src) {
     for (size_t i = 0; i <  obstalces.size(); i++) {
         cv::drawContours(src, obstalces, i, cv::Scalar(80, 80, 80), -1);

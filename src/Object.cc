@@ -4,19 +4,16 @@
 
 const double PI = 3.141592653589793238;
  
-// 内部投影需要确定每条valid边在内部投影之后是否可以进行外部投影（ids有非负的吗）
-// 内部投影先做，做完之后可以确定每个object有谁投影
 void Object::internalProjection(const Eigen::Vector2d& obs) {
-    // 每一次被选中投影之后，自身队列没有必要存在了
-    /// @todo: heap没能成功关联 
     HeapType heap(edges);
-    for (size_t i = 0; i < edges.size(); i++)
-        heap.emplace(i);
+    for (size_t i = 0; i < edges.size(); i++) {
+        if (edges[i].valid)
+            heap.emplace(i);
+    }
     while (heap.empty() == false) {
         size_t top = heap.top();
         Edge& this_edge = edges[top];
         heap.pop();
-        if (this_edge.valid == false) continue;
         for (size_t i = 0; i < edges.size(); i++) {
             Edge& eg = edges[i];
             if (eg.valid == false || &eg == &this_edge)
@@ -27,17 +24,20 @@ void Object::internalProjection(const Eigen::Vector2d& obs) {
 }
 
 void Object::externalOcclusion(Object& obj, Eigen::Vector2d obs) {
+    HeapType heap(edges);
     for (size_t i = 0; i < edges.size(); i++) {
-        Edge& eg = edges[i];
-        if (eg.valid == false) continue;
-        obj.externalProjector(eg, obs);
+        if (edges[i].valid)
+            heap.emplace(i);
+    }
+    while (heap.empty() == false) {
+        size_t top = heap.top();
+        Edge& this_edge = edges[top];
+        heap.pop();
+        obj.externalProjector(this_edge, obs);
     }
 }
 
-// 以一个edge进行投影，修改余下的edge
-// 内部三投影方式不修改堆
 void Object::externalProjector(Edge& src, const Eigen::Vector2d& obs) {
-    // 别的object产生的投影，也是需要使用到这样一个heap的，而pop操作会破怪heap
     HeapType heap(edges);
     for (size_t i = 0; i < edges.size(); i++)
         heap.emplace(i);
@@ -49,7 +49,6 @@ void Object::externalProjector(Edge& src, const Eigen::Vector2d& obs) {
         int fx = this_edge.front().x(), fy = this_edge.front().y(), bx = this_edge.back().x(), by = this_edge.back().y();
         projectEdge2Edge(src, obs, this_edge, heap);
     }
-    // 需要重新建堆
     bool valid_flag = false;
     for (size_t i = 0; i < edges.size(); i++) {
         if (edges[i].valid == true) {
@@ -61,7 +60,6 @@ void Object::externalProjector(Edge& src, const Eigen::Vector2d& obs) {
         valid = false;
 }
 
-// 根据观测位置，进行背面剔除，建立对应的object
 void Object::intialize(const std::vector<Eigen::Vector2d>& pts, const Eigen::Vector2d& obs) {
     edges.clear();
     Edge to_add;
@@ -136,12 +134,11 @@ void Object::intialize(const std::vector<Eigen::Vector2d>& pts, const Eigen::Vec
     valid = true;
 }
 
-// make polygons for render(ing)，输出供opencv使用的多边形
 void Object::makePolygons4Render(Eigen::Vector2d obs, std::vector<std::vector<cv::Point>>& polygons) const{
     for (const Edge& eg: edges) {
         if (eg.valid == false) continue;
         polygons.emplace_back();
-        std::vector<cv::Point> back = polygons.back();
+        std::vector<cv::Point>& back = polygons.back();
         back.emplace_back(obs.x(), obs.y());
         for (const Eigen::Vector3d& p: eg) {
             back.emplace_back(p.x(), p.y());
@@ -149,7 +146,6 @@ void Object::makePolygons4Render(Eigen::Vector2d obs, std::vector<std::vector<cv
     }
 }
 
-// 内部投影也需要考虑加edge了
 void Object::projectEdge2Edge(const Edge& src, const Eigen::Vector2d& obs, Edge& dst, HeapType& heap) {
     int first_id = src.proj_ids.first, second_id = src.proj_ids.second, point_num = 0;
     std::array<bool, 2> can_proj = {false, false};
@@ -184,26 +180,22 @@ void Object::projectEdge2Edge(const Edge& src, const Eigen::Vector2d& obs, Edge&
             beam = ept;
             angle = e_ang;
             pop_back_flag = false;          // pop_front
-        } else {        // SRC的两个端点不在DST范围内（有可能完全遮挡的）
+        } else {                            // SRC的两个端点不在DST范围内（有可能完全遮挡的）
             const Eigen::Vector2d dst_f = dst.front().block<2, 1>(0, 0) - obs, dst_b = dst.back().block<2, 1>(0, 0) - obs;
             if (dst_f.dot(fpt) < 0.0 && dst_b.dot(ept) < 0.0) return;
-            // 此处的逻辑不够完备，判定全覆盖不是这么简单的事情
-            const Eigen::Vector2d s2s = src.back().block<2, 1>(0, 0) - dst.back().block<2, 1>(0, 0),
-                    f2f = src.front().block<2, 1>(0, 0) - dst.front().block<2, 1>(0, 0);
-            const Eigen::Vector2d ns2s(-s2s(1), s2s(0)), nf2f(-f2f(1), f2f(0));       // f2f 要>=0，s2s <= 0
-            if (nf2f.dot(dst_f) < -margin || ns2s.dot(dst_b) > margin) return;
-            int id = src.rotatedBinarySearch(dst.front().z());
-            if (id > 0) {
+            int f_id = src.rotatedBinarySearch(dst.front().z());
+            if (f_id > 0) {
                 Eigen::Vector3d tmp;
-                bool dst_closer = rangeSuitable(src[id - 1], src[id], dst_f, obs, tmp);
+                bool dst_closer = rangeSuitable(src[f_id - 1], src[f_id], dst_f, obs, tmp);
                 if (dst_closer == true) return;
             }
-            id = src.rotatedBinarySearch(dst.back().z());
-            if (id > 0) {
+            int e_id = src.rotatedBinarySearch(dst.back().z());
+            if (e_id > 0) {
                 Eigen::Vector3d tmp;
-                bool dst_closer = rangeSuitable(src[id - 1], src[id], dst_b, obs, tmp);
+                bool dst_closer = rangeSuitable(src[e_id - 1], src[e_id], dst_b, obs, tmp);
                 if (dst_closer == true) return;        // 投影边的range更大
             }
+            if (f_id < 0 || e_id < 0) return;
             dst.valid = false;
             return;
         }
@@ -212,7 +204,7 @@ void Object::projectEdge2Edge(const Edge& src, const Eigen::Vector2d& obs, Edge&
         const Eigen::Vector2d o2s = dst.back().block<2, 1>(0, 0) - obs, o2f = dst.front().block<2, 1>(0, 0) - obs;
         if (can_proj.front() == true) {         // 小角度（逆时针）
             const Eigen::Vector2d src_o2f = src.front().block<2, 1>(0, 0) - obs;
-            if (src_o2f.dot(o2f) <= 0.0)        // 反向光线
+            if (src_o2f.dot(o2f) <= 0.0 && src_o2f.dot(o2s) <= 0.0)        // 反向光线
                 return;
             const Eigen::Vector2d f2f = src.front().block<2, 1>(0, 0) - dst.front().block<2, 1>(0, 0),
                     f2s = src.back().block<2, 1>(0, 0) - dst.front().block<2, 1>(0, 0),
@@ -236,7 +228,7 @@ void Object::projectEdge2Edge(const Edge& src, const Eigen::Vector2d& obs, Edge&
             angle = src[first_id].z();
         } else if (can_proj.back() == true){
             const Eigen::Vector2d src_o2s = src.back().block<2, 1>(0, 0) - obs;
-            if (src_o2s.dot(o2s) <= 0.0)        // 反向光线
+            if (src_o2s.dot(o2s) <= 0.0 && src_o2s.dot(o2f) <= 0.0)        // 反向光线
                 return;
             const Eigen::Vector2d s2s = src.back().block<2, 1>(0, 0) - dst.back().block<2, 1>(0, 0),
                     s2f = src.front().block<2, 1>(0, 0) - dst.back().block<2, 1>(0, 0),
@@ -244,7 +236,6 @@ void Object::projectEdge2Edge(const Edge& src, const Eigen::Vector2d& obs, Edge&
             const Eigen::Vector2d ns2s(-s2s(1), s2s(0)), ns2f(-s2f(1), s2f(0)), nf2s(-f2s(1), f2s(0));        // 求法向量
             if (ns2s.dot(o2s) < 0) {            // src.second 超过 dst.second 可能全覆盖
                 if (ns2f.dot(o2s) >= 0) {        // src.first 不超过 dst.second 说明真全覆盖
-                    // 反向搜索逻辑，dst的两个angle比较range
                     int e_id = src.rotatedBinarySearch(dst.back().z());
                     if (e_id > 0) {
                         Eigen::Vector3d intersect = Eigen::Vector3d::Zero();
@@ -289,7 +280,6 @@ void Object::projectEdge2Edge(const Edge& src, const Eigen::Vector2d& obs, Edge&
 }
 
 void Object::breakEdge(Eigen::Vector2d b1, Eigen::Vector2d b2, Eigen::Vector2d obs, Edge& dst, HeapType& heap) {
-    //
     std::array<Eigen::Vector2d, 2> task = {b1, b2};
     std::vector<Eigen::Vector3d> crs;
     std::array<size_t, 2> ids = {0, 0};
@@ -340,7 +330,6 @@ void Object::visualizeEdges(cv::Mat& src, cv::Point obs) const{
     cv::circle(src, obs, 4, cv::Scalar(0, 255, 0), -1);
 }
 
-// 根据光源位置，计算光线与线段的交点
 Eigen::Vector3d Object::getIntersection(
     const Eigen::Vector2d& vec,
     const Eigen::Vector3d& _p1,

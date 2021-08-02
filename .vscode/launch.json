@@ -9,7 +9,7 @@
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/build/main",
-            "args": ["debug4"],
+            "args": ["test"],
             "stopAtEntry": false,
             "cwd": "${fileDirname}",
             "environment": [],

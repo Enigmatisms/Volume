@@ -12,4 +12,3 @@ void mapDraw(const std::vector<Obstacle>& obstalces, const Obstacle& obst, cv::M
 void mapLoad(std::string path, std::vector<std::vector<cv::Point>>& obstacles);
 
 void mapSave(const std::vector<std::vector<cv::Point>>& obstacles, std::string path);
-

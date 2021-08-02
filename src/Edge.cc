@@ -1,6 +1,8 @@
 #include "Edge.hpp"
 #include "LOG.hpp"
 
+const double bs_margin = 1e-7;
+
 void Edge::initWithObs(Eigen::Vector2d obs, int second_id) {
     LOG_CHECK("Init with obs, this address is: %x, size is %lu", this, this->size());
     proj_ids.first = -1;                            // 打断式投影的第二个edge中少一个投影点
@@ -38,7 +40,7 @@ int Edge::rotatedBinarySearch(double angle) const{
         m = static_cast<int>((s + e) / 2);
         mid_angle = at(m).z();
     }
-    if (angle >= front().z()) {
+    if (angle >= front().z() - bs_margin) {
         int id = binarySearch(std::make_pair(0, m - 1), angle);
         if (id == -2) return m;
         return id;
@@ -49,14 +51,14 @@ int Edge::rotatedBinarySearch(double angle) const{
 }
 int Edge::binarySearch(std::pair<int, int> range, double angle) const{
     int s = range.first, e = range.second, m = static_cast<int>((s + e) / 2);
-    if (angle < at(s).z()) return -1;
-    else if (angle > at(e).z()) return -2;
+    if (angle < at(s).z() - bs_margin) return -1;
+    else if (angle > at(e).z() + bs_margin) return -2;
     int range_min = std::max(1, range.first);
     double mid_angle = at(m).z();
     while (s < e) {
-        if (mid_angle > angle) {
+        if (mid_angle - bs_margin > angle) {
             e = m;
-        } else if (mid_angle < angle) {
+        } else if (mid_angle + bs_margin < angle) {
             s = m + 1;
         } else {
             return std::max(range_min, m);
