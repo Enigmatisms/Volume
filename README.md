@@ -14,7 +14,7 @@
 
 ### 2.1 Dependencies
 
-​		 The dependent libraries are（**<u>Ubuntu 18.04</u>**）有：
+​		 The dependent libraries are (**<u>Ubuntu 18.04</u>**)：
 
 | Name & Version | Roles                                                 |
 | -------------- | ----------------------------------------------------- |
@@ -75,6 +75,6 @@ cd volume/build/
 
 ​		To have more information of this repo and algorithm, see the personal blogs of mine [[Event Horizon]](https://enigmatisms.github.io/).
 
-![](/home/sentinel/volume/asset/thumbnail.png)
+![](./asset/thumbnail.png)
 
-![](/home/sentinel/volume/asset/thumbnail2.png)
+![](./asset/thumbnail2.png)
