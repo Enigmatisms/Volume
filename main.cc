@@ -39,16 +39,16 @@ int main(int argc, char** argv) {
     cv::namedWindow("disp", cv::WINDOW_AUTOSIZE);
     cv::setMouseCallback("disp", on_mouse, NULL);
     Volume vol;
-    obs = cv::Point(367, 769);
+    obs = cv::Point(509, 536);
     int speed = 3;
     if (argc > 2) 
         speed = atoi(argv[2]);
-    while (obs_set == false) {
-        cv::imshow("disp", src);
-        char key = cv::waitKey(10);
-        if (key == 27)
-            return 0;
-    }
+    // while (obs_set == false) {
+    //     cv::imshow("disp", src);
+    //     char key = cv::waitKey(10);
+    //     if (key == 27)
+    //         return 0;
+    // }
     bool render_flag = false;
     double time_cnt = 1.0, time_sum = 0.0;
     double start_t = std::chrono::system_clock::now().time_since_epoch().count() / 1e9;

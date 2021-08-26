@@ -25,6 +25,7 @@ void Object::internalProjection(const Eigen::Vector2d& obs) {
 
 void Object::externalOcclusion(Object& obj, Eigen::Vector2d obs) {
     HeapType heap(edges);
+    printf("There are: %lu egdes in the obj.\n", obj.edges.size());
     for (size_t i = 0; i < edges.size(); i++) {
         if (edges[i].valid)
             heap.emplace(i);
@@ -32,6 +33,7 @@ void Object::externalOcclusion(Object& obj, Eigen::Vector2d obs) {
     while (heap.empty() == false) {
         size_t top = heap.top();
         Edge& this_edge = edges[top];
+        printf("top is: %lu\n", top);
         heap.pop();
         obj.externalProjector(this_edge, obs);
     }
@@ -147,7 +149,9 @@ void Object::makePolygons4Render(Eigen::Vector2d obs, std::vector<std::vector<cv
 }
 
 void Object::projectEdge2Edge(const Edge& src, const Eigen::Vector2d& obs, Edge& dst, HeapType& heap) {
-    int first_id = src.proj_ids.first, second_id = src.proj_ids.second, point_num = 0;
+    int first_id = src.proj_ids.first;
+    int second_id = src.proj_ids.second;
+    int point_num = 0;
     std::array<bool, 2> can_proj = {false, false};
     if (first_id >= 0)  {
         can_proj[0] = true;
@@ -182,7 +186,22 @@ void Object::projectEdge2Edge(const Edge& src, const Eigen::Vector2d& obs, Edge&
             pop_back_flag = false;          // pop_front
         } else {                            // SRC的两个端点不在DST范围内（有可能完全遮挡的）
             const Eigen::Vector2d dst_f = dst.front().block<2, 1>(0, 0) - obs, dst_b = dst.back().block<2, 1>(0, 0) - obs;
-            if (dst_f.dot(fpt) < 0.0 && dst_b.dot(ept) < 0.0) return;
+            std::vector<Eigen::Vector2d> test_rays;
+            test_rays.emplace_back(fpt);
+            test_rays.emplace_back(ept);
+            if (second_id >= first_id + 2) {
+                size_t mid_id = (first_id + second_id) / 2;
+                test_rays.emplace_back(src[mid_id].block<2, 1>(0, 0) - obs);
+            }
+            bool reverse_flag = true;
+            for (const Eigen::Vector2d& ray: test_rays) {
+                if (ray.dot(dst_f) > 0.0 || ray.dot(dst_b) > 0.0) {
+                    reverse_flag = false;
+                    break;
+                }
+            }
+            if (reverse_flag == true)
+                return;
             int f_id = src.rotatedBinarySearch(dst.front().z());
             if (f_id > 0) {
                 Eigen::Vector3d tmp;
@@ -203,13 +222,29 @@ void Object::projectEdge2Edge(const Edge& src, const Eigen::Vector2d& obs, Edge&
         // 大小角逻辑
         const Eigen::Vector2d o2s = dst.back().block<2, 1>(0, 0) - obs, o2f = dst.front().block<2, 1>(0, 0) - obs;
         if (can_proj.front() == true) {         // 小角度（逆时针）
-            const Eigen::Vector2d src_o2f = src.front().block<2, 1>(0, 0) - obs;
-            if (src_o2f.dot(o2f) <= 0.0 && src_o2f.dot(o2s) <= 0.0)        // 反向光线
+            std::vector<Eigen::Vector2d> test_rays;
+            test_rays.emplace_back(src.front().block<2, 1>(0, 0) - obs);
+            test_rays.emplace_back(src.back().block<2, 1>(0, 0) - obs);
+            if (src.size() > 2) {
+                size_t mid_id = src.size() / 2;
+                test_rays.emplace_back(src[mid_id].block<2, 1>(0, 0) - obs);
+            }
+            bool reverse_flag = true;
+            for (const Eigen::Vector2d& ray: test_rays) {
+                if (ray.dot(o2f) > 0.0 || ray.dot(o2s) >= 0.0) {
+                    reverse_flag = false;
+                    break;
+                }
+            }
+            if (reverse_flag == true)
                 return;
             const Eigen::Vector2d f2f = src.front().block<2, 1>(0, 0) - dst.front().block<2, 1>(0, 0),
                     f2s = src.back().block<2, 1>(0, 0) - dst.front().block<2, 1>(0, 0),
                     s2f = src.front().block<2, 1>(0, 0) - dst.back().block<2, 1>(0, 0);
             const Eigen::Vector2d nf2f(-f2f(1), f2f(0)), ns2f(-s2f(1), s2f(0)), nf2s(-f2s(1), f2s(0));
+            // 覆盖判定需要重写
+            int s_id = src.rotatedBinarySearch(dst.front().z());
+            s_id = src.rotatedBinarySearch(dst.back().z());
             if (nf2f.dot(o2f) >= 0) {           // src.first 超过 dst.first 可全覆盖
                 if (nf2s.dot(o2f) < 0) {        // src.second 不超过 dst.first 真全覆盖
                     int s_id = src.rotatedBinarySearch(dst.front().z());
@@ -227,8 +262,21 @@ void Object::projectEdge2Edge(const Edge& src, const Eigen::Vector2d& obs, Edge&
             beam = src[first_id].block<2, 1>(0, 0) - obs;
             angle = src[first_id].z();
         } else if (can_proj.back() == true){
-            const Eigen::Vector2d src_o2s = src.back().block<2, 1>(0, 0) - obs;
-            if (src_o2s.dot(o2s) <= 0.0 && src_o2s.dot(o2f) <= 0.0)        // 反向光线
+            std::vector<Eigen::Vector2d> test_rays;
+            test_rays.emplace_back(src.front().block<2, 1>(0, 0) - obs);
+            test_rays.emplace_back(src.back().block<2, 1>(0, 0) - obs);
+            if (src.size() > 2) {
+                size_t mid_id = src.size() / 2;
+                test_rays.emplace_back(src[mid_id].block<2, 1>(0, 0) - obs);
+            }
+            bool reverse_flag = true;
+            for (const Eigen::Vector2d& ray: test_rays) {
+                if (ray.dot(o2f) > 0.0 || ray.dot(o2s) >= 0.0) {
+                    reverse_flag = false;
+                    break;
+                }
+            }
+            if (reverse_flag == true)
                 return;
             const Eigen::Vector2d s2s = src.back().block<2, 1>(0, 0) - dst.back().block<2, 1>(0, 0),
                     s2f = src.front().block<2, 1>(0, 0) - dst.back().block<2, 1>(0, 0),

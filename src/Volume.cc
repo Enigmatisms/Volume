@@ -44,18 +44,18 @@ void Volume::calculateVisualSpace(const std::vector<Obstacle>& _obstcs, cv::Poin
             obstcs.back().emplace_back(pt.x, pt.y);
     }
     // ================ add walls ================
-    obstcs.emplace_back();
-    for (const cv::Point& pt: north_wall)
-        obstcs.back().emplace_back(pt.x, pt.y); 
-    obstcs.emplace_back();
-    for (const cv::Point& pt: east_wall)
-        obstcs.back().emplace_back(pt.x, pt.y); 
-    obstcs.emplace_back();
-    for (const cv::Point& pt: south_wall)
-        obstcs.back().emplace_back(pt.x, pt.y); 
-    obstcs.emplace_back();
-    for (const cv::Point& pt: west_wall)
-        obstcs.back().emplace_back(pt.x, pt.y); 
+    // obstcs.emplace_back();
+    // for (const cv::Point& pt: north_wall)
+    //     obstcs.back().emplace_back(pt.x, pt.y); 
+    // obstcs.emplace_back();
+    // for (const cv::Point& pt: east_wall)
+    //     obstcs.back().emplace_back(pt.x, pt.y); 
+    // obstcs.emplace_back();
+    // for (const cv::Point& pt: south_wall)
+    //     obstcs.back().emplace_back(pt.x, pt.y); 
+    // obstcs.emplace_back();
+    // for (const cv::Point& pt: west_wall)
+    //     obstcs.back().emplace_back(pt.x, pt.y); 
 
     int obj_cnt = 0;
     for (const std::vector<Eigen::Vector2d>& obstacle: obstcs) {            // 构建objects
@@ -93,6 +93,7 @@ void Volume::calculateVisualSpace(const std::vector<Obstacle>& _obstcs, cv::Poin
             }
         }
         LOG_SHELL("After external proj, valids in object %d are:", obj_id);
+        simplePreVisualize(src, obs);
     }
 }
 

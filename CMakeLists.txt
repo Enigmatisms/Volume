@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 2.8.3)
 project(volume)
-set(GDB_DEBUG FALSE)
+set(GDB_DEBUG TRUE)
 
 ## Torch 需要至少C++14进行编译
 set(CMAKE_CXX_STANDARD 17)
