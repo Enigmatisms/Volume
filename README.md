@@ -13,9 +13,9 @@
   - Mouse control in OpenCV 4, much easier to control your source of light.
   - Notice that if you are looking for a **<u>2D LiDAR simulator</u>**, I have built a simple simulator upon this repository, see [[Enigmatisms/ParticleFilter]](https://github.com/Enigmatisms/ParticleFilter), which is awesome.
 
-| ![](asset/Screenshot from 2021-08-26 23-14-55.png) | ![](asset/Screenshot from 2021-08-26 23-15-26.png) |
-| -------------------------------------------------- | -------------------------------------------------- |
-| ![](asset/Screenshot from 2021-08-26 23-15-59.png) | ![](asset/Screenshot from 2021-08-26 23-16-31.png) |
+| ![](./asset/m1.png) | ![](./asset/m2.png) |
+| ------------------- | ------------------- |
+| ![](./asset/m3.png) | ![](./asset/m4.png) |
 
 ---
 
