@@ -2,6 +2,23 @@
 
 ---
 
+## Recent Updates
+
+- 2021.8.26 Major revision in Volume, delete much redundant code. Make the logic clearer and simpler, more efficient.
+- Some bugs are fixed, and the new updates are tested in 4 new maps seen as follows.
+  - Able to handle the boundaries which cover more than 360 degs.
+  - Able to run in a "Room like" (relatively closed) maps.
+  - Better occlusion judgement strategies, less code than before.
+  - Four new **<u>standard maps</u>** are added in the folder `maps`
+  - Mouse control in OpenCV 4, much easier to control your source of light.
+  - Notice that if you are looking for a **<u>2D LiDAR simulator</u>**, I have built a simple simulator upon this repository, see [[Enigmatisms/ParticleFilter]](https://github.com/Enigmatisms/ParticleFilter), which is awesome.
+
+| ![](asset/Screenshot from 2021-08-26 23-14-55.png) | ![](asset/Screenshot from 2021-08-26 23-15-26.png) |
+| -------------------------------------------------- | -------------------------------------------------- |
+| ![](asset/Screenshot from 2021-08-26 23-15-59.png) | ![](asset/Screenshot from 2021-08-26 23-16-31.png) |
+
+---
+
 ## I. Introduction
 
 ​		This C++ repo is for a 2D real-time “volume light” generator, designed for irregular obstacles. I have implemented the algorithm for regular obstacles (squares) in repo: [[Enigmatisms/Algorithm-Plus]](https://github.com/Enigmatisms/Algorithms-Plus/tree/master/cpp/volume), therefore, this one is regarded as A 'Volume 2D Shader **<u>Pro</u>**'.
