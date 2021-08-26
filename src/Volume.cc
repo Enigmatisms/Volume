@@ -34,9 +34,8 @@ void Volume::prettier(cv::Mat& src, const Eigen::Vector2d& obs) const {
 }
 
 
-void Volume::calculateVisualSpace(const std::vector<Obstacle>& _obstcs, cv::Point obs, cv::Mat& src) {
+void Volume::calculateVisualSpace(const std::vector<Obstacle>& _obstcs, Eigen::Vector2d obs, cv::Mat& src) {
     objs.clear();
-    Eigen::Vector2d observing_point(obs.x, obs.y); 
     std::vector<std::vector<Eigen::Vector2d>> obstcs;
     for (const Obstacle& obstacle: _obstcs) {            // 构建objects
         obstcs.emplace_back();
@@ -44,23 +43,23 @@ void Volume::calculateVisualSpace(const std::vector<Obstacle>& _obstcs, cv::Poin
             obstcs.back().emplace_back(pt.x, pt.y);
     }
     // ================ add walls ================
-    // obstcs.emplace_back();
-    // for (const cv::Point& pt: north_wall)
-    //     obstcs.back().emplace_back(pt.x, pt.y); 
-    // obstcs.emplace_back();
-    // for (const cv::Point& pt: east_wall)
-    //     obstcs.back().emplace_back(pt.x, pt.y); 
-    // obstcs.emplace_back();
-    // for (const cv::Point& pt: south_wall)
-    //     obstcs.back().emplace_back(pt.x, pt.y); 
-    // obstcs.emplace_back();
-    // for (const cv::Point& pt: west_wall)
-    //     obstcs.back().emplace_back(pt.x, pt.y); 
+    obstcs.emplace_back();
+    for (const cv::Point& pt: north_wall)
+        obstcs.back().emplace_back(pt.x, pt.y); 
+    obstcs.emplace_back();
+    for (const cv::Point& pt: east_wall)
+        obstcs.back().emplace_back(pt.x, pt.y); 
+    obstcs.emplace_back();
+    for (const cv::Point& pt: south_wall)
+        obstcs.back().emplace_back(pt.x, pt.y); 
+    obstcs.emplace_back();
+    for (const cv::Point& pt: west_wall)
+        obstcs.back().emplace_back(pt.x, pt.y); 
 
     int obj_cnt = 0;
     for (const std::vector<Eigen::Vector2d>& obstacle: obstcs) {            // 构建objects
         Object obj(obj_cnt);
-        obj.intialize(obstacle, observing_point);
+        obj.intialize(obstacle, obs);
         objs.push_back(obj);
         obj_cnt++;
     }
@@ -71,17 +70,14 @@ void Volume::calculateVisualSpace(const std::vector<Obstacle>& _obstcs, cv::Poin
         Object& obj = objs[obj_id];
         heap.pop();
         LOG_ERROR("Object %d, started to internal project.", obj_id);
-        obj.internalProjection(observing_point);
+        obj.internalProjection(obs);
         LOG_MARK("After interal proj, valids in object %d are:", obj_id);
         LOG_MARK("Object %d, started to external project.", obj_id);
         for (Object& projectee: objs) {
             // 不查看完全被遮挡的，不投影已经投影过的
             if (projectee.valid == false || obj.id == projectee.id) continue;
             LOG_GAY("External occ, object %lu", projectee.id);
-            // 选择projectee被投影
-            // if (obj_id == 11 && projectee.id == 17)
-            //     simplePreVisualize(src, obs);
-            obj.externalOcclusion(projectee, observing_point);
+            obj.externalOcclusion(projectee, obs);
             LOG_CHECK("Projectee (%d) processed, edges (valid):", projectee.id);
             for (Edge& eg: projectee.edges) {
                 if (eg.valid == false || eg.size() > 2) continue;
@@ -93,7 +89,7 @@ void Volume::calculateVisualSpace(const std::vector<Obstacle>& _obstcs, cv::Poin
             }
         }
         LOG_SHELL("After external proj, valids in object %d are:", obj_id);
-        simplePreVisualize(src, obs);
+        simplePreVisualize(src, cv::Point(obs.x(), obs.y()));
     }
 }
 

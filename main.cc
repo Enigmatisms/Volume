@@ -5,17 +5,46 @@
 #include "mapEdit.h"
 
 cv::Mat src;
-cv::Point obs;
-bool obs_set = false;
+Eigen::Vector2d obs, orient;
 
-void on_mouse(int event, int x,int y, int flags, void *ustc) {
+double angle = 0.0;
+const double K_P = 0.2;
+const double K_I = 0.0001;
+const double K_D = 0.001;
+bool obs_set = false;
+bool render_flag = false;
+
+double pidAngle(double now) {
+    Eigen::Vector2d vec = orient - obs;
+    double target = atan2(vec.x(), -vec.y());
+    static double old_diff = 0.0, accum = 0.0;
+    double diff = target - now;
+    if (now > 2.5 && target < -2.5) {
+        diff += 2 * M_PI;
+    } else if (now < -2.5 && target > 2.5) {
+        diff -= 2 * M_PI;
+    }
+    double result = K_P * diff + K_I * accum + K_D * (diff - old_diff);
+    accum += diff;
+    old_diff = diff;
+    return result;
+}
+
+void on_mouse(int event, int x, int y, int flags, void *ustc) {
     if (event == cv::EVENT_LBUTTONDOWN && obs_set == false) {
         printf("cv::Point(%d, %d),\n", x, y);
-        obs.x = x;
-        obs.y = y;
+        obs(0) = double(x);
+        obs(1) = double(y);
         cv::circle(src, cv::Point(x, y), 3, cv::Scalar(0, 255, 0), -1);
         obs_set = true;
-    }
+    } else if (obs_set == true) {
+        orient(0) = double(x);
+        orient(1) = double(y);
+        render_flag = true;
+        if (event == cv::EVENT_LBUTTONDOWN) {
+            printf("Now angle: %.4lf\n", angle * 180.0 / M_PI);
+        }
+    } 
 }
 
 int main(int argc, char** argv) {
@@ -38,23 +67,23 @@ int main(int argc, char** argv) {
     }                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  
     cv::namedWindow("disp", cv::WINDOW_AUTOSIZE);
     cv::setMouseCallback("disp", on_mouse, NULL);
+    cv::circle(src, cv::Point(799, 59), 2, cv::Scalar(0, 0, 255), -1);
     Volume vol;
-    obs = cv::Point(509, 536);
+    obs = Eigen::Vector2d(799, 59);
     int speed = 3;
     if (argc > 2) 
         speed = atoi(argv[2]);
-    // while (obs_set == false) {
-    //     cv::imshow("disp", src);
-    //     char key = cv::waitKey(10);
-    //     if (key == 27)
-    //         return 0;
-    // }
-    bool render_flag = false;
+    while (obs_set == false) {
+        cv::imshow("disp", src);
+        char key = cv::waitKey(10);
+        if (key == 27)
+            return 0;
+    }
     double time_cnt = 1.0, time_sum = 0.0;
     double start_t = std::chrono::system_clock::now().time_since_epoch().count() / 1e9;
     vol.calculateVisualSpace(obstacles, obs, src);
     double end_t = std::chrono::system_clock::now().time_since_epoch().count() / 1e9;
-    vol.visualizeVisualSpace(obstacles, Eigen::Vector2d(obs.x, obs.y), src);
+    vol.visualizeVisualSpace(obstacles, obs, src);
     time_sum += end_t - start_t;
     // cv::imwrite("../asset/thumbnail2.png", src);
     // std::string outPath = "/home/sentinel/cv_output.avi";
@@ -70,7 +99,7 @@ int main(int argc, char** argv) {
             start_t = std::chrono::system_clock::now().time_since_epoch().count() / 1e9;
             vol.calculateVisualSpace(obstacles, obs, src);
             end_t = std::chrono::system_clock::now().time_since_epoch().count() / 1e9;
-            vol.visualizeVisualSpace(obstacles, Eigen::Vector2d(obs.x, obs.y), src);
+            vol.visualizeVisualSpace(obstacles, obs, src);
             // outputVideo.write(src);
             time_sum += end_t - start_t;
             time_cnt += 1.0;
@@ -78,35 +107,36 @@ int main(int argc, char** argv) {
         }
         switch(key) {
             case 'w': {
-                if (obs.y > 30) {
-                    obs.y -= 4;
-                    render_flag = true;
-                }
+                obs(0) += sin(angle) * speed;
+                obs(1) -= cos(angle) * speed;
+                render_flag = true;
                 break;
             }
             case 'a': {
-                if (obs.x > 30) {
-                    obs.x -= 4;
-                    render_flag = true;
-                }
+                obs(0) -= cos(angle) * speed;
+                obs(1) -= sin(angle) * speed;
+                render_flag = true;
                 break;
             }
             case 's': {
-                if (obs.y < 870) {
-                    obs.y += 4;
-                    render_flag = true;
-                }
+                obs(0) -= sin(angle) * speed;
+                obs(1) += cos(angle) * speed;
+                render_flag = true;
                 break;
             }
             case 'd': {
-                if (obs.x < 1170) {
-                    obs.x += 4;
-                    render_flag = true;
-                }
+                obs(0) += cos(angle) * speed;
+                obs(1) += sin(angle) * speed;
+                render_flag = true;
                 break;
             }
             case 27: break_flag = true;
         }
+        angle += pidAngle(angle);
+        if (angle > M_PI)
+            angle -= 2 * M_PI;
+        else if (angle < -M_PI)
+            angle += 2 * M_PI;
         if (break_flag == true)
             break;
         vol.reset();

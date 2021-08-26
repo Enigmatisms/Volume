@@ -12,7 +12,7 @@ public:
     Volume(): heap(ObjCompFunctor(objs)) {}
     ~Volume() {}
 public:
-    void calculateVisualSpace(const std::vector<Obstacle>& _obstcs, cv::Point obs, cv::Mat& src);
+    void calculateVisualSpace(const std::vector<Obstacle>& _obstcs, Eigen::Vector2d obs, cv::Mat& src);
     
     void visualizeVisualSpace(const std::vector<Obstacle>& _obstcs, const Eigen::Vector2d& obs, cv::Mat& dst) const;
 
